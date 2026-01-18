@@ -1,15 +1,15 @@
 import { INestApplication } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import { default as request, default as supertest } from 'supertest'
-import { PermissionsDto } from './dto/permissions.dto'
-import { RolesModule } from './test/roles.module'
 import { createLoggerModule } from '../../logger'
+import { PermissionsDto } from './dto/permissions.dto'
+import { RolesTestModule } from './test/roles-test.module'
 
 describe('The RolesController', () => {
   let app: INestApplication
   beforeEach(async () => {
     const module = await Test.createTestingModule({
-      imports: [RolesModule, createLoggerModule()],
+      imports: [RolesTestModule, createLoggerModule()],
     }).compile()
     jest.setTimeout(20000)
 

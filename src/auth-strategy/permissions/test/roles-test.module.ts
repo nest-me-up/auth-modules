@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { LoggerModule } from 'nestjs-pino'
-import { RolesController } from './roles.controller'
+import { RolesTestController } from './roles-test.controller'
 
 @Module({
   imports: [ConfigModule, LoggerModule],
-  controllers: [RolesController],
+  controllers: [RolesTestController],
   providers: [],
   exports: [],
 })
-export class RolesModule {}
+export class RolesTestModule {}

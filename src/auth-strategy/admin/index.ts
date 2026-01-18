@@ -1,3 +1,4 @@
+export { AdminAuthController, UsernamePasswordDto } from './admin-auth.controller'
 export { AdminAuthModule } from './admin-auth.module'
 export { AdminJwtAuthGuard } from './admin-jwt-auth.guard'
 export { AdminJwtStrategy } from './admin-jwt.strategy'

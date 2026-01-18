@@ -1,5 +1,5 @@
 import { Body, Controller, Post, UsePipes, ValidationPipe } from '@nestjs/common'
-import { IsString } from 'class-validator'
+import { IsString, Matches } from 'class-validator'
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino'
 import { AdminAuthService } from './admin-auth.service'
 import { AdminIdentity } from './admin.interface'
@@ -24,5 +24,9 @@ export class UsernamePasswordDto {
   username: string
 
   @IsString()
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[$&+,:;=?@#|'<>.^*()%!-])[A-Za-z\d@$&+,:;=?@#|'<>.^*()%!-]{8,}$/, {
+    message:
+      'password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character',
+  })
   password: string
 }
