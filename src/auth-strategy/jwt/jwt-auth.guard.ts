@@ -8,7 +8,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   private readonly authConfig: AuthConfig
   constructor(private readonly configService: ConfigService) {
     super()
-    this.authConfig = this.configService.get<AuthConfig>('auth.excludePaths')
+    this.authConfig = this.configService.get<AuthConfig>('auth')
   }
   canActivate(context: ExecutionContext) {
     const requestUrl = context.switchToHttp().getRequest<Request>().url

@@ -18,8 +18,14 @@ export class PermissionsGuard implements CanActivate {
     private readonly logger: PinoLogger,
     private readonly configService: ConfigService,
   ) {
-    const config = this.configService.get<Config>('permissions.decoratorOptions')
-    this.permissionsConfig = config.permissions
+    const config = this.configService.get<Config>('auth')
+    this.permissionsConfig = config?.permissions || {
+      excludePaths: undefined,
+      cookieName: undefined,
+      jwt: undefined,
+      header: 'x-permissions',
+      adminPermissions: [],
+    }
   }
 
   getRequest(context: ExecutionContext) {

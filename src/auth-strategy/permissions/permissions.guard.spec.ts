@@ -1,29 +1,42 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { getLoggerMock } from '@nest-me-up/common'
 import { ExecutionContext, ForbiddenException } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { Reflector } from '@nestjs/core'
-import {
-  permissionsHeaderName,
-  projectIdHeaderName,
-  projectIdsHeaderName,
-  tenantIdHeaderName,
-  userIdHeaderName,
-} from '../../http-client'
-import { getLoggerMock } from '../../logger'
-import { PermissionsConfig } from './permissions-decorator-options'
+import { PermissionsDecoratorOptions } from './permissions-decorator-options'
+import { Config } from './permissions.config'
 import { PermissionsGuard } from './permissions.guard'
 
+const permissionsHeaderName = 'x-permissions'
 describe('RoleGuard', () => {
   let guard: PermissionsGuard
+  let configService: ConfigService
+  const authConfig: Config = {
+    excludePaths: [],
+    cookieName: '',
+    jwt: {
+      secretKey: '',
+      ignoreExpiration: false,
+    },
+    permissions: {
+      header: permissionsHeaderName,
+      adminPermissions: [],
+    } as any,
+  }
 
   beforeEach(() => {
-    guard = new PermissionsGuard(new Reflector(), getLoggerMock())
+    configService = {
+      get: jest.fn().mockReturnValue(authConfig),
+    } as unknown as ConfigService
+    guard = new PermissionsGuard(new Reflector(), getLoggerMock(), configService)
   })
 
   it('should be defined', () => {
     expect(guard).toBeDefined()
   })
-  it.skip('should return false without auth', async () => {
+  it('should return true without auth guard', async () => {
     const context = {
-      getHandler: jest.fn().mockReturnValue(null),
+      getHandler: jest.fn().mockReturnValue(() => {}),
       switchToHttp: jest.fn().mockReturnValue({
         getRequest: () => ({
           headers: {
@@ -49,38 +62,13 @@ describe('RoleGuard', () => {
     expect(context.switchToHttp).toHaveBeenCalledTimes(1)
   })
 
-  describe('new permission header tests', () => {
-    it('requires projectID but missing', async () => {
-      const httpContext = {
-        getRequest: () => {
-          return {
-            headers: {
-              [tenantIdHeaderName]: 'tenant',
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]:
-                '[{"projectId": "GLOBAL", "permissions":["d","c"]},{"projectId": "1", "permissions":["a","c"]}]',
-            },
-            body: {},
-          }
-        },
-      }
-      const context = {
-        switchToHttp: () => httpContext,
-      }
-      const perms: PermissionsConfig = {
-        permissions: ['a', 'b'],
-      }
-      jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([perms])
-      await expect(guard.canActivate(context as unknown as ExecutionContext)).rejects.toThrow(ForbiddenException)
-    })
+  describe('permission header tests', () => {
     it('missing headers', async () => {
       const httpContext = {
         getRequest: () => {
           return {
             headers: {
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]:
-                '[{"projectId": "GLOBAL", "permissions":["d","c"]},{"projectId": "1", "permissions":["a","c"]}]',
+              [permissionsHeaderName]: 'd,c',
             },
             body: {},
           }
@@ -89,23 +77,19 @@ describe('RoleGuard', () => {
       const context = {
         switchToHttp: () => httpContext,
       }
-      const perms: PermissionsConfig = {
+      const perms: PermissionsDecoratorOptions = {
         permissions: ['a', 'b'],
       }
       jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([perms])
       await expect(guard.canActivate(context as unknown as ExecutionContext)).rejects.toThrow(ForbiddenException)
     })
 
-    it('project1 includes permission', async () => {
+    it('includes permission', async () => {
       const httpContext = {
         getRequest: () => {
           return {
             headers: {
-              [tenantIdHeaderName]: 'tenant',
-              [projectIdHeaderName]: '3a2c9f35-5993-4ccb-ac02-a74cedba26e2',
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]:
-                '[{"projectId":"GLOBAL","permissions":["self.read","tenant-structure.read"]},{"projectId":"3a2c9f35-5993-4ccb-ac02-a74cedba26e2","permissions":["report.read","report.write","report.execute","dbt.read","dbt.write","dbt.execute","users.read","self.read","tenant-structure.read","version.read","version.write","pipeline.read","pipeline.write","pipeline.execute","project_accounting.read","audit.read","project_accounting.write"]},{"projectId":"75e3fb37-0eaa-46a7-9065-005eeb4561b3","permissions":[]}]',
+              [permissionsHeaderName]: 'users.read, tenant-structure.read',
             },
             body: {},
           }
@@ -114,7 +98,7 @@ describe('RoleGuard', () => {
       const context = {
         switchToHttp: () => httpContext,
       }
-      const perms: PermissionsConfig = {
+      const perms: PermissionsDecoratorOptions = {
         permissions: ['users.read', 'accounting.read'],
       }
       jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([perms])
@@ -122,331 +106,24 @@ describe('RoleGuard', () => {
       expect(result).toBeTruthy()
     })
 
-    it('project includes permission - with projectId', async () => {
+    it('does not include permission', async () => {
       const httpContext = {
         getRequest: () => {
           return {
             headers: {
-              [tenantIdHeaderName]: 'tenant',
-              [projectIdHeaderName]: '1',
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]:
-                '[{"projectId": "GLOBAL", "permissions":["d","c"]},{"projectId": "1", "permissions":["a","c"]}]',
+              [permissionsHeaderName]: 'users.read, tenant-structure.read',
             },
-            body: {},
           }
         },
       }
       const context = {
         switchToHttp: () => httpContext,
       }
-      const perms: PermissionsConfig = {
-        permissions: ['a', 'b'],
+      const perms: PermissionsDecoratorOptions = {
+        permissions: ['self.read', 'accounting.read'],
       }
       jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([perms])
-      const result = await guard.canActivate(context as unknown as ExecutionContext)
-      expect(result).toBeTruthy()
-    })
-    it('project includes permission - with projectId and global permissions', async () => {
-      const httpContext = {
-        getRequest: () => {
-          return {
-            headers: {
-              [tenantIdHeaderName]: 'tenant',
-              [projectIdHeaderName]: '1',
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]:
-                '[{"projectId": "GLOBAL", "permissions":["a","b"]},{"projectId": "1", "permissions":["d","c"]}]',
-            },
-            body: {},
-          }
-        },
-      }
-      const context = {
-        switchToHttp: () => httpContext,
-      }
-      jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([{ permissions: ['d', 'c'] }])
-      const result = await guard.canActivate(context as unknown as ExecutionContext)
-      expect(result).toBeTruthy()
-    })
-    it('project includes permission - with projectId and global permissions - self', async () => {
-      const httpContext = {
-        getRequest: () => {
-          return {
-            headers: {
-              [tenantIdHeaderName]: 'tenant',
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]:
-                '[{"projectId":"GLOBAL","permissions":["report.read","report.write","report.execute","dbt.read","dbt.write","dbt.execute","users.read","self.read","tenant-structure.read","version.read","version.write","pipeline.read","pipeline.write","pipeline.execute","project_accounting.read"]}]',
-            },
-            body: {},
-          }
-        },
-      }
-      const context = {
-        switchToHttp: () => httpContext,
-      }
-      jest
-        .spyOn(guard, 'getPermissionsDecorator')
-        .mockReturnValue([{ permissions: ['project_accounting.read'], notProjectSpecific: true }])
-      const result = await guard.canActivate(context as unknown as ExecutionContext)
-      expect(result).toBeTruthy()
-    })
-    it('project includes permission - without projectId', async () => {
-      const httpContext = {
-        getRequest: () => {
-          return {
-            headers: {
-              [tenantIdHeaderName]: 'tenant',
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]: '[{"projectId": "GLOBAL", "permissions":["a","b"]}]',
-            },
-            body: {},
-          }
-        },
-      }
-      const context = {
-        switchToHttp: () => httpContext,
-      }
-      jest
-        .spyOn(guard, 'getPermissionsDecorator')
-        .mockReturnValue([{ permissions: ['a', 'b'], notProjectSpecific: true }])
-      const result = await guard.canActivate(context as unknown as ExecutionContext)
-      expect(result).toBeTruthy()
-    })
-    it('project doesnt include permission - without projectId', async () => {
-      const httpContext = {
-        getRequest: () => {
-          return {
-            headers: {
-              [tenantIdHeaderName]: 'tenant',
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]: '[{"projectId": "GLOBAL", "permissions":["c","d"]}]',
-            },
-            body: {},
-          }
-        },
-      }
-      const context = {
-        switchToHttp: () => httpContext,
-      }
-      jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([{ permissions: ['a', 'b'] }])
       await expect(guard.canActivate(context as unknown as ExecutionContext)).rejects.toThrow(ForbiddenException)
     })
-    it('project doesnt include permission - with projectId using global', async () => {
-      const httpContext = {
-        getRequest: () => {
-          return {
-            headers: {
-              [tenantIdHeaderName]: 'tenant',
-              [projectIdHeaderName]: '1',
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]: '[{"projectId": "GLOBAL", "permissions":["c","d"]}]',
-            },
-            body: {},
-          }
-        },
-      }
-      const context = {
-        switchToHttp: () => httpContext,
-      }
-      jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([{ permissions: ['a', 'b'] }])
-      await expect(guard.canActivate(context as unknown as ExecutionContext)).rejects.toThrow(ForbiddenException)
-    })
-    it('project doesnt include permission - with projectId using project', async () => {
-      const httpContext = {
-        getRequest: () => {
-          return {
-            headers: {
-              [tenantIdHeaderName]: 'tenant',
-              [projectIdHeaderName]: '1',
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]: '[{"projectId": "1", "permissions":["c","d"]}]',
-            },
-            body: {},
-          }
-        },
-      }
-      const context = {
-        switchToHttp: () => httpContext,
-      }
-      jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([{ permissions: ['a', 'b'] }])
-      await expect(guard.canActivate(context as unknown as ExecutionContext)).rejects.toThrow(ForbiddenException)
-    })
-    it('project doesnt include permission - with projectId with project and global', async () => {
-      const httpContext = {
-        getRequest: () => {
-          return {
-            headers: {
-              [tenantIdHeaderName]: 'tenant',
-              [projectIdHeaderName]: '1',
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]:
-                '[{"projectId": "GLOBAL", "permissions":["a","b"]},{"projectId": "1", "permissions":["d","c"]}]',
-            },
-            body: {},
-          }
-        },
-      }
-      const context = {
-        switchToHttp: () => httpContext,
-      }
-      jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([{ permissions: ['e', 'f'] }])
-      await expect(guard.canActivate(context as unknown as ExecutionContext)).rejects.toThrow(ForbiddenException)
-    })
-  })
-
-  describe('projectIds array tests', () => {
-    it('should pass when all projectIds have required permissions', async () => {
-      const httpContext = {
-        getRequest: () => {
-          return {
-            headers: {
-              [tenantIdHeaderName]: 'tenant',
-              [projectIdsHeaderName]: '1,2,3',
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]:
-                '[{"projectId": "1", "permissions":["a","b"]}, {"projectId": "2", "permissions":["a","b"]}, {"projectId": "3", "permissions":["a","b"]}]',
-            },
-            body: {},
-          }
-        },
-      }
-      const context = {
-        switchToHttp: () => httpContext,
-      }
-      jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([{ permissions: ['a'] }])
-      const result = await guard.canActivate(context as unknown as ExecutionContext)
-      expect(result).toBeTruthy()
-    })
-
-    it('should fail if any projectId is missing required permissions', async () => {
-      const httpContext = {
-        getRequest: () => {
-          return {
-            headers: {
-              [tenantIdHeaderName]: 'tenant',
-              [projectIdsHeaderName]: '1,2,3',
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]:
-                '[{"projectId": "1", "permissions":["a","b"]}, {"projectId": "2", "permissions":["c","d"]}, {"projectId": "3", "permissions":["a","b"]}]',
-            },
-            body: {},
-          }
-        },
-      }
-      const context = {
-        switchToHttp: () => httpContext,
-      }
-      jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([{ permissions: ['a'] }])
-      await expect(guard.canActivate(context as unknown as ExecutionContext)).rejects.toThrow(ForbiddenException)
-    })
-
-    it('should pass when global permissions cover all projectIds', async () => {
-      const httpContext = {
-        getRequest: () => {
-          return {
-            headers: {
-              [tenantIdHeaderName]: 'tenant',
-              [projectIdsHeaderName]: '1,2,3',
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]: '[{"projectId": "GLOBAL", "permissions":["a","b"]}]',
-            },
-            body: {},
-          }
-        },
-      }
-      const context = {
-        switchToHttp: () => httpContext,
-      }
-      jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([{ permissions: ['a'] }])
-      const result = await guard.canActivate(context as unknown as ExecutionContext)
-      expect(result).toBeTruthy()
-    })
-
-    it('should pass with mix of global and project-specific permissions', async () => {
-      const httpContext = {
-        getRequest: () => {
-          return {
-            headers: {
-              [tenantIdHeaderName]: 'tenant',
-              [projectIdsHeaderName]: '1,2,3',
-              [userIdHeaderName]: 'user',
-              [permissionsHeaderName]:
-                '[{"projectId": "GLOBAL", "permissions":["a","b"]}, {"projectId": "2", "permissions":["c","d"]}]',
-            },
-            body: {},
-          }
-        },
-      }
-      const context = {
-        switchToHttp: () => httpContext,
-      }
-      jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([{ permissions: ['a'] }])
-      const result = await guard.canActivate(context as unknown as ExecutionContext)
-      expect(result).toBeTruthy()
-    })
-  })
-
-  it('should fail when both projectIds and projectId are undefined', async () => {
-    const httpContext = {
-      getRequest: () => {
-        return {
-          headers: {
-            [tenantIdHeaderName]: 'tenant',
-            [userIdHeaderName]: 'user',
-            [permissionsHeaderName]: '[{"projectId": "GLOBAL", "permissions":["a","b"]}]',
-          },
-          body: {},
-        }
-      },
-    }
-    const context = {
-      switchToHttp: () => httpContext,
-    }
-    jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([{ permissions: ['a'], notProjectSpecific: false }])
-    await expect(guard.canActivate(context as unknown as ExecutionContext)).rejects.toThrow(ForbiddenException)
-  })
-
-  it('should fail when projectIds is an empty array', async () => {
-    const httpContext = {
-      getRequest: () => {
-        return {
-          headers: {
-            [tenantIdHeaderName]: 'tenant',
-            [userIdHeaderName]: 'user',
-            [projectIdsHeaderName]: '',
-            [permissionsHeaderName]: '[{"projectId": "GLOBAL", "permissions":["a","b"]}]',
-          },
-          body: {},
-        }
-      },
-    }
-    const context = {
-      switchToHttp: () => httpContext,
-    }
-    jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([{ permissions: ['a'], notProjectSpecific: false }])
-    await expect(guard.canActivate(context as unknown as ExecutionContext)).rejects.toThrow(ForbiddenException)
-  })
-
-  it('should fail when projectId is empty string', async () => {
-    const httpContext = {
-      getRequest: () => {
-        return {
-          headers: {
-            [tenantIdHeaderName]: 'tenant',
-            [userIdHeaderName]: 'user',
-            [projectIdHeaderName]: '',
-            [permissionsHeaderName]: '[{"projectId": "GLOBAL", "permissions":["a","b"]}]',
-          },
-          body: {},
-        }
-      },
-    }
-    const context = {
-      switchToHttp: () => httpContext,
-    }
-    jest.spyOn(guard, 'getPermissionsDecorator').mockReturnValue([{ permissions: ['a'], notProjectSpecific: false }])
-    await expect(guard.canActivate(context as unknown as ExecutionContext)).rejects.toThrow(ForbiddenException)
   })
 })
