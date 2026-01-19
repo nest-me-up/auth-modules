@@ -1,7 +1,7 @@
 {
   "name": "@nest-me-up/auth-modules",
   "version": "0.0.1",
-  "description": "Library for common NestJs components for Web or Micro Services",
+  "description": "Library for NestJs authorization components for Web or Micro Services",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "keywords": [],
