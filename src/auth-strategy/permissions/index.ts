@@ -1,0 +1,5 @@
+export { PermissionsDecoratorOptions } from './permissions-decorator-options'
+export { PermissionsUtil } from './permissions-util'
+export type { Config, PermissionsConfig } from './permissions.config'
+export { UsePermissions } from './permissions.decorator'
+export { PermissionsGuard } from './permissions.guard'
